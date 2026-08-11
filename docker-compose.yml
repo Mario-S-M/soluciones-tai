@@ -83,6 +83,16 @@ services:
       # se llamaba pg_is_xlog_replay_paused() (el renombrado xlog -> wal es de
       # la 10). No rompe nada, pero llena el log de errores en cada conexion.
       - ./docker/pgadmin/connect/check_recovery.sql:/pgadmin4/pgadmin/browser/server_groups/servers/templates/connect/sql/default/check_recovery.sql:ro
+      # Y otra mas: las propiedades de una secuencia se leen del catalogo
+      # pg_catalog.pg_sequence, que tambien es de la 10. En 9.5 esos datos se
+      # sacan consultando la propia secuencia.
+      - ./docker/pgadmin/sequences/get_def.sql:/pgadmin4/pgadmin/browser/server_groups/servers/databases/schemas/sequences/templates/sequences/sql/default/get_def.sql:ro
+      # Las columnas de una tabla son el mismo caso: pgAdmin cruza con
+      # pg_sequence y lee att.attidentity para saber si una columna es IDENTITY,
+      # y las dos cosas son de la 10. En 9.5 ninguna columna puede serlo, asi
+      # que el JOIN se sustituye por uno que nunca casa y attidentity por NULL.
+      - ./docker/pgadmin/columns/nodes.sql:/pgadmin4/pgadmin/browser/server_groups/servers/databases/schemas/tables/templates/columns/sql/default/nodes.sql:ro
+      - ./docker/pgadmin/columns/properties.sql:/pgadmin4/pgadmin/browser/server_groups/servers/databases/schemas/tables/templates/columns/sql/default/properties.sql:ro
     depends_on:
       db:
         condition: service_healthy

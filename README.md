@@ -202,6 +202,35 @@ rompía nada visible, pero dejaba un error en el log en cada conexión.
 Si acabas de aplicar estos cambios, recarga la pestaña de pgAdmin: el árbol se cachea en el
 navegador y una pestaña abierta desde antes sigue mostrando el estado anterior.
 
+**`relation "pg_catalog.pg_sequence" does not exist`.** Aparecía al abrir las columnas de una
+tabla o las propiedades de una secuencia. `pg_sequence` es un catálogo nuevo de PostgreSQL 10:
+antes, los metadatos de una secuencia se leían consultando la propia secuencia. Lo mismo con
+`att.attidentity`, la columna de `pg_attribute` que marca las columnas `GENERATED AS IDENTITY`,
+también de la 10. Parcheados en `docker/pgadmin/columns/` y `docker/pgadmin/sequences/`:
+
+- En las columnas, el `JOIN` contra `pg_sequence` se sustituye por una subconsulta que nunca casa
+  —el mismo resultado que un `pg_sequence` vacío, que es la verdad en 9.5— y `attidentity` pasa a
+  `NULL`. Ninguna columna puede ser *identity* en 9.5, así que el resultado es correcto.
+- En las secuencias, `get_def.sql` lee `usuarios_id_seq` directamente. La secuencia ya expone
+  `last_value`, `min_value`, `max_value`, `start_value`, `cache_value`, `is_cycled`,
+  `increment_by` e `is_called` con esos mismos nombres, así que la consulta sale más simple que
+  la original.
+
+### Resumen: pgAdmin 7.8 contra PostgreSQL 9.5
+
+Los cuatro problemas anteriores son el mismo: pgAdmin 7.8 ya no da soporte a servidores tan
+antiguos y sus plantillas SQL más viejas asumen PostgreSQL 10. En total hay unas 40 plantillas en
+esa situación, pero la mayoría (16) son del nodo de particiones, que en 9.5 no llega a usarse
+porque no existe el particionamiento declarativo.
+
+Está parcheado todo lo que se toca en el uso normal: árbol de tablas, columnas, secuencias,
+Dashboard y la comprobación de recuperación al conectar. Quedan sin tocar las plantillas de
+*Search objects* y del *Grant Wizard*; si alguna vez usas esas herramientas y fallan, será por lo
+mismo y se arregla igual —`docker/pgadmin/` y un montaje más en el compose—.
+
+Todos los parches viven en `docker/pgadmin/` y se montan sobre los originales, así que la imagen
+no se modifica y basta con borrar el montaje para volver al comportamiento de fábrica.
+
 **Avisos de GPG al construir.** Debian 9 está archivado y sus claves de firma expiraron en 2022,
 por eso el Dockerfile usa `[trusted=yes]`. Es aceptable en un contenedor local y desechable.
 
