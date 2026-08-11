@@ -68,7 +68,31 @@ nada ni reiniciar contenedores.
 - `www/application/config/database.php` — driver `postgre`, credenciales leídas del entorno
   (`getenv('DB_HOST')`, etc.) que `docker-compose.yml` inyecta en el contenedor.
 - `www/application/config/config.php` — `base_url` en el puerto 8081 e `index_page` vacío.
+- `www/application/config/autoload.php` — helpers `url` y `form` cargados en todas las peticiones.
 - `www/.htaccess` — reglas de `mod_rewrite` para URLs sin `index.php`.
+
+## La aplicación
+
+| Ruta              | Qué hace                                                    |
+|-------------------|-------------------------------------------------------------|
+| `/usuarios`       | Listado de usuarios                                          |
+| `/usuarios/crear` | Formulario de alta con validación                            |
+| `/dbtest`         | Comprueba que Apache, PHP y PostgreSQL se hablan entre sí    |
+
+```
+application/models/Usuario_model.php     listar(), crear(), total()
+application/controllers/Usuarios.php     index() y crear()
+application/views/usuarios/              lista.php y form.php
+application/views/plantilla/             cabecera.php y pie.php (comunes)
+```
+
+El alta valida con `form_validation`: nombre, apellidos y correo obligatorios, correo con formato
+válido y único en la tabla, y longitudes que coinciden con las del esquema. El teléfono es
+opcional y se guarda como `NULL` cuando se deja vacío, no como cadena vacía.
+
+Los mensajes de error se traducen con `set_message()` en el propio controlador. No se cambia
+`$config['language']` a `spanish` porque entonces CodeIgniter esperaría encontrar traducidos
+todos sus archivos de idioma y fallaría al cargar los que faltan.
 
 ## Comandos útiles
 

@@ -45,5 +45,7 @@
 		</tr>
 		<?php endforeach; ?>
 	</table>
+
+	<p><a href="<?= site_url('usuarios') ?>">Gestionar usuarios</a></p>
 </body>
 </html>
