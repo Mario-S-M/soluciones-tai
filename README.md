@@ -180,6 +180,28 @@ versión de pgAdmin no sirve: las anteriores usan la misma consulta y no publica
 La pestaña *System Statistics* sigue vacía porque necesita la extensión opcional `system_stats`
 de pgAdmin, que no está instalada en el servidor. No afecta a nada más.
 
+**La tabla no aparece en el árbol de pgAdmin.** Mismo origen que lo anterior. Al expandir
+*Schemas → public → Tables* no salía nada, y el log del contenedor mostraba:
+
+```
+ERROR pgadmin: Failed to execute query (execute_2darray) for the server #1 - DB:soluciones_tai
+Error Message: column rel.relispartition does not exist
+```
+
+`relispartition` se añadió a `pg_class` en PostgreSQL 10, con el particionamiento declarativo. La
+plantilla más antigua que trae pgAdmin 7.8 (`.../tables/sql/default/`) ya la da por supuesta, así
+que contra un 9.5 la consulta del árbol falla entera y el nodo se queda vacío. Están parcheadas en
+`docker/pgadmin/tables/` (`nodes.sql`, `count.sql`, `properties.sql`, `get_inherits.sql`) y el
+compose las monta encima. El parche solo quita la condición `AND NOT rel.relispartition`, que en
+9.5 no descarta nada porque no existen las particiones declarativas.
+
+Junto a eso, `docker/pgadmin/connect/check_recovery.sql` cambia `pg_is_wal_replay_paused()` por
+`pg_is_xlog_replay_paused()`, su nombre en 9.5 —el renombrado `xlog` → `wal` es de la 10—. Ese no
+rompía nada visible, pero dejaba un error en el log en cada conexión.
+
+Si acabas de aplicar estos cambios, recarga la pestaña de pgAdmin: el árbol se cachea en el
+navegador y una pestaña abierta desde antes sigue mostrando el estado anterior.
+
 **Avisos de GPG al construir.** Debian 9 está archivado y sus claves de firma expiraron en 2022,
 por eso el Dockerfile usa `[trusted=yes]`. Es aceptable en un contenedor local y desechable.
 

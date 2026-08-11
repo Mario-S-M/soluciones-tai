@@ -69,6 +69,20 @@ services:
       # Consultas del Dashboard adaptadas a 9.5: las que trae pgAdmin asumen
       # 9.6+ y fallan con 'column "wait_event_type" does not exist'.
       - ./docker/pgadmin/sql:/pgadmin4/pgadmin/dashboard/templates/dashboard/sql/default:ro
+      # Mismo problema en el arbol de objetos: la plantilla mas antigua que trae
+      # pgAdmin 7.8 para las tablas ya asume PostgreSQL 10 y filtra por
+      # rel.relispartition, columna que no existe en 9.5. Sin esto, el nodo
+      # Tables no se expande y la tabla usuarios no aparece por ningun lado.
+      # Quitar esa condicion es seguro: en 9.5 no hay particionamiento
+      # declarativo, asi que nunca descartaba ninguna fila.
+      - ./docker/pgadmin/tables/nodes.sql:/pgadmin4/pgadmin/browser/server_groups/servers/databases/schemas/tables/templates/tables/sql/default/nodes.sql:ro
+      - ./docker/pgadmin/tables/count.sql:/pgadmin4/pgadmin/browser/server_groups/servers/databases/schemas/tables/templates/tables/sql/default/count.sql:ro
+      - ./docker/pgadmin/tables/properties.sql:/pgadmin4/pgadmin/browser/server_groups/servers/databases/schemas/tables/templates/tables/sql/default/properties.sql:ro
+      - ./docker/pgadmin/tables/get_inherits.sql:/pgadmin4/pgadmin/browser/server_groups/servers/databases/schemas/tables/templates/tables/sql/default/get_inherits.sql:ro
+      # Al conectar, pgAdmin llama a pg_is_wal_replay_paused(), que en 9.5 aun
+      # se llamaba pg_is_xlog_replay_paused() (el renombrado xlog -> wal es de
+      # la 10). No rompe nada, pero llena el log de errores en cada conexion.
+      - ./docker/pgadmin/connect/check_recovery.sql:/pgadmin4/pgadmin/browser/server_groups/servers/templates/connect/sql/default/check_recovery.sql:ro
     depends_on:
       db:
         condition: service_healthy
