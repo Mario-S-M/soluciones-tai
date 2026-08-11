@@ -1,0 +1,11 @@
+# Credenciales locales: versiona .env.example, no .env
+.env
+
+# Runtime de CodeIgniter
+www/application/logs/*.php
+www/application/cache/*
+!www/application/cache/index.html
+!www/application/cache/.htaccess
+
+# macOS
+.DS_Store

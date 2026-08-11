@@ -1,0 +1,14 @@
+{
+  "Servers": {
+    "1": {
+      "Name": "PostgreSQL 9.5 (Docker)",
+      "Group": "Servers",
+      "Host": "db",
+      "Port": 5432,
+      "MaintenanceDB": "soluciones_tai",
+      "Username": "tai",
+      "SSLMode": "prefer",
+      "Comment": "Servicio db de docker-compose. La contrasena esta en el archivo .env"
+    }
+  }
+}

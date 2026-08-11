@@ -1,0 +1,84 @@
+services:
+  # Apache 2.4.25 + PHP 5.6.40 (mod_php). La imagen base solo existe para
+  # linux/amd64, asi que en Apple Silicon corre bajo emulacion.
+  web:
+    build:
+      context: ./docker
+      dockerfile: php/Dockerfile
+    platform: linux/amd64
+    container_name: tai_web
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:${WEB_PORT}:80"
+    volumes:
+      - ./www:/var/www/html
+    environment:
+      DB_HOST: db
+      DB_PORT: 5432
+      DB_NAME: ${POSTGRES_DB}
+      DB_USER: ${POSTGRES_USER}
+      DB_PASS: ${POSTGRES_PASSWORD}
+    depends_on:
+      db:
+        condition: service_healthy
+    networks:
+      - tai
+
+  db:
+    image: postgres:9.5
+    platform: linux/amd64
+    container_name: tai_db
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:${DB_PORT}:5432"
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      # Postgres solo ejecuta estos scripts si el volumen esta vacio.
+      # Para re-ejecutarlos: docker compose down -v && docker compose up -d
+      - ./db/init:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+    networks:
+      - tai
+
+  # Pinneado a la rama 7.x: las versiones 8.x/9.x han ido retirando el soporte
+  # de servidores PostgreSQL antiguos como el 9.5.
+  pgadmin:
+    image: dpage/pgadmin4:7.8
+    container_name: tai_pgadmin
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:${PGADMIN_PORT}:80"
+    environment:
+      PGADMIN_DEFAULT_EMAIL: ${PGADMIN_DEFAULT_EMAIL}
+      PGADMIN_DEFAULT_PASSWORD: ${PGADMIN_DEFAULT_PASSWORD}
+      PGADMIN_CONFIG_SERVER_MODE: "False"
+      PGADMIN_CONFIG_MASTER_PASSWORD_REQUIRED: "False"
+    volumes:
+      - pgadmin_data:/var/lib/pgadmin
+      # Deja el servidor "PostgreSQL 9.5 (Docker)" ya registrado al arrancar.
+      - ./docker/pgadmin/servers.json:/pgadmin4/servers.json:ro
+      # Consultas del Dashboard adaptadas a 9.5: las que trae pgAdmin asumen
+      # 9.6+ y fallan con 'column "wait_event_type" does not exist'.
+      - ./docker/pgadmin/sql:/pgadmin4/pgadmin/dashboard/templates/dashboard/sql/default:ro
+    depends_on:
+      db:
+        condition: service_healthy
+    networks:
+      - tai
+
+volumes:
+  pgdata:
+  pgadmin_data:
+
+networks:
+  tai:
+    driver: bridge

@@ -1,0 +1,17 @@
+<IfModule mod_rewrite.c>
+    RewriteEngine On
+    RewriteBase /
+
+    # El codigo del framework y de la aplicacion no debe servirse por HTTP.
+    RewriteRule ^(application|system)/ index.php [L]
+
+    # Todo lo que no sea un archivo o directorio real pasa por index.php,
+    # que es lo que permite tener URLs sin "index.php" en medio.
+    RewriteCond %{REQUEST_FILENAME} !-f
+    RewriteCond %{REQUEST_FILENAME} !-d
+    RewriteRule ^(.*)$ index.php/$1 [L]
+</IfModule>
+
+<IfModule !mod_rewrite.c>
+    ErrorDocument 404 /index.php
+</IfModule>
