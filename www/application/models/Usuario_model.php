@@ -16,10 +16,20 @@ class Usuario_model extends CI_Model {
 
 	/**
 	 * Todos los usuarios, del mas antiguo al mas reciente.
+	 * No selecciona contrasena_hash: el hash nunca debe salir de la base de
+	 * datos hacia PHP/la vista, solo un indicador de si esta configurada.
 	 */
 	public function listar()
 	{
-		return $this->db->order_by('id', 'ASC')->get($this->tabla)->result();
+		return $this->db
+			->select(
+				"id, nombre, apellidos, correo, telefono, creado_en, " .
+				"CASE WHEN contrasena_hash IS NOT NULL THEN 'Sí' ELSE 'No' END AS contrasena_estado",
+				FALSE
+			)
+			->order_by('id', 'ASC')
+			->get($this->tabla)
+			->result();
 	}
 
 	/**
@@ -28,11 +38,14 @@ class Usuario_model extends CI_Model {
 	public function crear($datos)
 	{
 		$this->db->insert($this->tabla, array(
-			'nombre'    => $datos['nombre'],
-			'apellidos' => $datos['apellidos'],
-			'correo'    => $datos['correo'],
+			'nombre'          => $datos['nombre'],
+			'apellidos'       => $datos['apellidos'],
+			'correo'          => $datos['correo'],
 			// El telefono es opcional: NULL en vez de cadena vacia.
-			'telefono'  => $datos['telefono'] !== '' ? $datos['telefono'] : NULL,
+			'telefono'        => $datos['telefono'] !== '' ? $datos['telefono'] : NULL,
+			// Bcrypt via password_hash(), nativo de PHP desde 5.5: salt
+			// aleatorio incluido, sin libreria ni extension adicional.
+			'contrasena_hash' => password_hash($datos['contrasena'], PASSWORD_BCRYPT),
 		));
 
 		return $this->db->insert_id();

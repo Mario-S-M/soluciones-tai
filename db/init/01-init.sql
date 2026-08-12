@@ -7,12 +7,14 @@
 CREATE SEQUENCE usuarios_id_seq;
 
 CREATE TABLE usuarios (
-    id        INTEGER      PRIMARY KEY DEFAULT nextval('usuarios_id_seq'),
-    nombre    VARCHAR(100) NOT NULL,
-    apellidos VARCHAR(150) NOT NULL,
-    correo    VARCHAR(150) NOT NULL UNIQUE,
-    telefono  VARCHAR(20),
-    creado_en TIMESTAMP    NOT NULL DEFAULT NOW()
+    id               INTEGER      PRIMARY KEY DEFAULT nextval('usuarios_id_seq'),
+    nombre           VARCHAR(100) NOT NULL,
+    apellidos        VARCHAR(150) NOT NULL,
+    correo           VARCHAR(150) NOT NULL UNIQUE,
+    telefono         VARCHAR(20),
+    -- Hash bcrypt generado con password_hash() de PHP; nunca texto plano.
+    contrasena_hash  VARCHAR(255),
+    creado_en        TIMESTAMP    NOT NULL DEFAULT NOW()
 );
 
 -- Ata la secuencia a la columna: se borra junto con la tabla y pg_dump la

@@ -18,6 +18,16 @@
 		<input type="text" id="telefono" name="telefono" maxlength="20" value="<?= set_value('telefono') ?>">
 		<?= form_error('telefono', '<p class="error">', '</p>') ?>
 
+		<!-- Sin set_value(): repoblar un campo de contraseña tras un fallo de
+		     validación dejaría el valor en texto plano en la respuesta HTML. -->
+		<label for="contrasena">Contraseña</label>
+		<input type="password" id="contrasena" name="contrasena" minlength="8" maxlength="72" autocomplete="new-password">
+		<?= form_error('contrasena', '<p class="error">', '</p>') ?>
+
+		<label for="contrasena_confirmar">Confirmar contraseña</label>
+		<input type="password" id="contrasena_confirmar" name="contrasena_confirmar" minlength="8" maxlength="72" autocomplete="new-password">
+		<?= form_error('contrasena_confirmar', '<p class="error">', '</p>') ?>
+
 		<button type="submit" class="boton">Guardar</button>
 
 	<?= form_close() ?>

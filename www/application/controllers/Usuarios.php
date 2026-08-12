@@ -36,6 +36,11 @@ class Usuarios extends CI_Controller {
 		$this->form_validation->set_rules('apellidos', 'apellidos', 'trim|required|max_length[150]');
 		$this->form_validation->set_rules('correo',    'correo',    'trim|required|valid_email|max_length[150]|is_unique[usuarios.correo]');
 		$this->form_validation->set_rules('telefono',  'teléfono',  'trim|max_length[20]');
+		// max_length[72]: password_hash() con PASSWORD_BCRYPT trunca en
+		// silencio cualquier entrada mas alla de 72 bytes, asi que se limita
+		// aqui de forma explicita en vez de dejar que ocurra sin avisar.
+		$this->form_validation->set_rules('contrasena', 'contraseña', 'required|min_length[8]|max_length[72]');
+		$this->form_validation->set_rules('contrasena_confirmar', 'confirmar contraseña', 'required|matches[contrasena]');
 
 		// Los mensajes de CI vienen en ingles. Se traducen aqui, y no cambiando
 		// $config['language'], porque eso obligaria a tener traducidos todos los
@@ -44,6 +49,8 @@ class Usuarios extends CI_Controller {
 		$this->form_validation->set_message('valid_email', 'El campo %s debe ser una dirección de correo válida.');
 		$this->form_validation->set_message('is_unique',  'Ya hay un usuario registrado con ese %s.');
 		$this->form_validation->set_message('max_length', 'El campo %s no puede pasar de %s caracteres.');
+		$this->form_validation->set_message('min_length', 'El campo %s debe tener al menos %s caracteres.');
+		$this->form_validation->set_message('matches',    'El campo %s no coincide con %s.');
 
 		// En la primera visita (GET) run() devuelve FALSE sin errores, asi que
 		// esta misma rama sirve para pintar el formulario vacio y para
@@ -57,10 +64,11 @@ class Usuarios extends CI_Controller {
 		}
 
 		$id = $this->usuario_model->crear(array(
-			'nombre'    => $this->input->post('nombre'),
-			'apellidos' => $this->input->post('apellidos'),
-			'correo'    => $this->input->post('correo'),
-			'telefono'  => $this->input->post('telefono'),
+			'nombre'     => $this->input->post('nombre'),
+			'apellidos'  => $this->input->post('apellidos'),
+			'correo'     => $this->input->post('correo'),
+			'telefono'   => $this->input->post('telefono'),
+			'contrasena' => $this->input->post('contrasena'),
 		));
 
 		redirect('usuarios?alta='.$id);

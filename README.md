@@ -54,10 +54,12 @@ docker/php/php.ini        Ajustes de desarrollo (display_errors On)
 docker/apache/vhost.conf  DocumentRoot y AllowOverride All
 docker/pgadmin/servers.json  Servidor precargado en pgAdmin
 db/init/01-init.sql       Esquema inicial (secuencia + tabla usuarios)
+db/migrations/            Cambios de esquema posteriores, para bases ya inicializadas
 db/backup.sh              Exporta la base de datos a db/backup/
 db/restore.sh             Recrea la base de datos y carga un dump
 db/backup/                Respaldos generados (.sql)
 www/                      CodeIgniter 3.1.13
+www/assets/css/           CSS de la aplicación (fuera de application/, servido directo por Apache)
 ```
 
 `www/` está montado como volumen: los cambios en el código se ven al recargar, sin reconstruir
@@ -67,7 +69,9 @@ nada ni reiniciar contenedores.
 
 - `www/application/config/database.php` — driver `postgre`, credenciales leídas del entorno
   (`getenv('DB_HOST')`, etc.) que `docker-compose.yml` inyecta en el contenedor.
-- `www/application/config/config.php` — `base_url` en el puerto 8081 e `index_page` vacío.
+- `www/application/config/config.php` — `base_url` en el puerto 8081, `index_page` vacío y
+  `csrf_protection` activado (todos los formularios usan `form_open()`, que añade el campo oculto
+  solo).
 - `www/application/config/autoload.php` — helpers `url` y `form` cargados en todas las peticiones.
 - `www/.htaccess` — reglas de `mod_rewrite` para URLs sin `index.php`.
 
@@ -84,15 +88,43 @@ application/models/Usuario_model.php     listar(), crear(), total()
 application/controllers/Usuarios.php     index() y crear()
 application/views/usuarios/              lista.php y form.php
 application/views/plantilla/             cabecera.php y pie.php (comunes)
+assets/css/estilos.css                   CSS de cabecera.php y de las vistas de usuarios
 ```
 
 El alta valida con `form_validation`: nombre, apellidos y correo obligatorios, correo con formato
-válido y único en la tabla, y longitudes que coinciden con las del esquema. El teléfono es
-opcional y se guarda como `NULL` cuando se deja vacío, no como cadena vacía.
+válido y único en la tabla, longitudes que coinciden con las del esquema, contraseña de al menos
+8 caracteres (y máximo 72, ver más abajo) y un campo `contrasena_confirmar` que debe coincidir
+(`matches[contrasena]`). El teléfono es opcional y se guarda como `NULL` cuando se deja vacío, no
+como cadena vacía.
 
 Los mensajes de error se traducen con `set_message()` en el propio controlador. No se cambia
 `$config['language']` a `spanish` porque entonces CodeIgniter esperaría encontrar traducidos
 todos sus archivos de idioma y fallaría al cargar los que faltan.
+
+## Decisiones de seguridad
+
+**Por qué bcrypt y no md5/sha1/sha256.** `Usuario_model::crear()` cifra la contraseña con
+`password_hash($contrasena, PASSWORD_BCRYPT)`, nativo de PHP desde la 5.5 (el proyecto corre en
+5.6.40, no hace falta librería ni extensión adicional). md5, sha1 y sha256 son funciones de
+digest rápidas, pensadas para checksums de integridad, no para secretos: esa misma velocidad es
+lo que abarata el fuerza bruta y las tablas rainbow si la base de datos se filtra. bcrypt es
+deliberadamente lento (factor de coste configurable, con reajuste posible según mejore el
+hardware) y añade un salt aleatorio en cada llamada, así que dos contraseñas iguales nunca
+producen el mismo hash.
+
+**Por qué la contraseña nunca se muestra.** Dos capas, no solo "no imprimirlo en la vista":
+`Usuario_model::listar()` no selecciona `contrasena_hash` de la base de datos —usa `select()`
+explícito con una expresión `CASE` que calcula un indicador `'Sí'/'No'`—, así que el hash nunca
+llega a PHP ni a `usuarios/lista.php`. La columna de la vista solo pinta ese indicador.
+
+**Por qué `max_length[72]`.** bcrypt trunca en silencio cualquier entrada de más de 72 bytes; se
+deja como regla explícita de `form_validation`, igual que el resto de longitudes del formulario,
+en vez de dejar que ocurra sin que nadie lo note.
+
+**Por qué se activó CSRF con este cambio.** El formulario ahora maneja una contraseña, así que
+tiene sentido cerrar ese hueco a la vez. No hace falta tocar ninguna vista: `form_open()` ya
+inyecta el campo oculto cuando `csrf_protection` está en `TRUE`, y `usuarios/crear` es el único
+POST de toda la aplicación.
 
 ## Comandos útiles
 
@@ -104,24 +136,44 @@ docker compose build --no-cache web                       # reconstruir PHP desd
 
 ## Base de datos
 
-La tabla `usuarios` guarda nombre, apellidos, correo y teléfono. El `id` no usa `SERIAL`: la
-secuencia se declara aparte (`CREATE SEQUENCE usuarios_id_seq`) y se ata a la columna con
-`ALTER SEQUENCE ... OWNED BY`, así queda como un objeto propio del esquema —visible con `\ds`—
-pero se sigue borrando junto con la tabla y `pg_dump` la exporta con su `setval`.
+La tabla `usuarios` guarda nombre, apellidos, correo, teléfono y el hash bcrypt de la contraseña.
+El `id` no usa `SERIAL`: la secuencia se declara aparte (`CREATE SEQUENCE usuarios_id_seq`) y se
+ata a la columna con `ALTER SEQUENCE ... OWNED BY`, así queda como un objeto propio del esquema
+—visible con `\ds`— pero se sigue borrando junto con la tabla y `pg_dump` la exporta con su
+`setval`.
 
 ```sql
 CREATE SEQUENCE usuarios_id_seq;
 
 CREATE TABLE usuarios (
-    id        INTEGER      PRIMARY KEY DEFAULT nextval('usuarios_id_seq'),
-    nombre    VARCHAR(100) NOT NULL,
-    apellidos VARCHAR(150) NOT NULL,
-    correo    VARCHAR(150) NOT NULL UNIQUE,
-    telefono  VARCHAR(20),
-    creado_en TIMESTAMP    NOT NULL DEFAULT NOW()
+    id               INTEGER      PRIMARY KEY DEFAULT nextval('usuarios_id_seq'),
+    nombre           VARCHAR(100) NOT NULL,
+    apellidos        VARCHAR(150) NOT NULL,
+    correo           VARCHAR(150) NOT NULL UNIQUE,
+    telefono         VARCHAR(20),
+    contrasena_hash  VARCHAR(255),
+    creado_en        TIMESTAMP    NOT NULL DEFAULT NOW()
 );
 
 ALTER SEQUENCE usuarios_id_seq OWNED BY usuarios.id;
+```
+
+`contrasena_hash` es `NULL`able a nivel de esquema a propósito: lo "obligatorio" se exige en
+`form_validation`, no en la base de datos, así que los tres usuarios de ejemplo no necesitan un
+hash de relleno.
+
+### Migraciones sobre una base ya inicializada
+
+`db/init/01-init.sql` solo corre una vez, cuando el volumen de Postgres está vacío (ver
+"Problemas conocidos" más abajo). Para aplicar un cambio de esquema —como añadir
+`contrasena_hash`— a una base que ya tiene datos, sin perderlos, `db/migrations/` guarda parches
+SQL idempotentes con la fecha por delante:
+
+```bash
+./db/backup.sh
+docker compose exec -T db psql -U tai -d soluciones_tai \
+    < db/migrations/2026-08-11-add-contrasena-hash.sql
+docker compose exec db psql -U tai -d soluciones_tai -c "\d usuarios"   # verificar
 ```
 
 ### Respaldo y restauración

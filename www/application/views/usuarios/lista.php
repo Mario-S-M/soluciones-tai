@@ -10,7 +10,7 @@
 	<table>
 		<tr>
 			<th>ID</th><th>Nombre</th><th>Apellidos</th>
-			<th>Correo</th><th>Teléfono</th><th>Alta</th>
+			<th>Correo</th><th>Teléfono</th><th>Contraseña</th><th>Alta</th>
 		</tr>
 		<?php foreach ($usuarios as $u): ?>
 		<tr>
@@ -19,6 +19,7 @@
 			<td><?= html_escape($u->apellidos) ?></td>
 			<td><?= html_escape($u->correo) ?></td>
 			<td><?= $u->telefono === NULL ? '—' : html_escape($u->telefono) ?></td>
+			<td><?= html_escape($u->contrasena_estado) ?></td>
 			<td><?= html_escape(date('d/m/Y', strtotime($u->creado_en))) ?></td>
 		</tr>
 		<?php endforeach; ?>
