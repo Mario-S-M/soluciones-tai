@@ -12,3 +12,6 @@ www/application/cache/*
 
 # Specs de trabajo (no se versionan)
 specs/
+
+# Configuración local de Claude Code
+.claude/
