@@ -14,9 +14,26 @@
 		<input type="email" id="correo" name="correo" maxlength="150" value="<?= set_value('correo') ?>">
 		<?= form_error('correo', '<p class="error">', '</p>') ?>
 
+		<label for="curp">CURP</label>
+		<input type="text" id="curp" name="curp" maxlength="18" style="text-transform: uppercase" value="<?= set_value('curp') ?>">
+		<?= form_error('curp', '<p class="error">', '</p>') ?>
+
+		<label for="rfc">RFC</label>
+		<input type="text" id="rfc" name="rfc" maxlength="13" style="text-transform: uppercase" value="<?= set_value('rfc') ?>">
+		<?= form_error('rfc', '<p class="error">', '</p>') ?>
+
 		<label for="telefono">Teléfono <span class="vacio">(opcional)</span></label>
 		<input type="text" id="telefono" name="telefono" maxlength="20" value="<?= set_value('telefono') ?>">
 		<?= form_error('telefono', '<p class="error">', '</p>') ?>
+
+		<label for="sexo">Sexo</label>
+		<select id="sexo" name="sexo">
+			<option value="">Selecciona una opción</option>
+			<option value="M" <?= set_select('sexo', 'M') ?>>Masculino</option>
+			<option value="F" <?= set_select('sexo', 'F') ?>>Femenino</option>
+			<option value="Otro" <?= set_select('sexo', 'Otro') ?>>Otro</option>
+		</select>
+		<?= form_error('sexo', '<p class="error">', '</p>') ?>
 
 		<!-- Sin set_value(): repoblar un campo de contraseña tras un fallo de
 		     validación dejaría el valor en texto plano en la respuesta HTML. -->

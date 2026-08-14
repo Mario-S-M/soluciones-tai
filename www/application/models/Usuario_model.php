@@ -41,6 +41,9 @@ class Usuario_model extends CI_Model {
 			'nombre'          => $datos['nombre'],
 			'apellidos'       => $datos['apellidos'],
 			'correo'          => $datos['correo'],
+			'curp'            => $datos['curp'],
+			'rfc'             => $datos['rfc'],
+			'sexo'            => $datos['sexo'],
 			// El telefono es opcional: NULL en vez de cadena vacia.
 			'telefono'        => $datos['telefono'] !== '' ? $datos['telefono'] : NULL,
 			// Bcrypt via password_hash(), nativo de PHP desde 5.5: salt
