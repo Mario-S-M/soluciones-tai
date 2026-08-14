@@ -77,25 +77,40 @@ nada ni reiniciar contenedores.
 
 ## La aplicación
 
-| Ruta              | Qué hace                                                    |
-|-------------------|-------------------------------------------------------------|
-| `/usuarios`       | Listado de usuarios                                          |
-| `/usuarios/crear` | Formulario de alta con validación                            |
-| `/dbtest`         | Comprueba que Apache, PHP y PostgreSQL se hablan entre sí    |
+| Ruta                    | Qué hace                                                     |
+|-------------------------|----------------------------------------------------------------|
+| `/usuarios`             | Listado de usuarios                                           |
+| `/usuarios/crear`       | Formulario de alta con validación                             |
+| `/usuarios/editar/:id`  | Formulario de edición, con la contraseña opcional             |
+| `/usuarios/graficas`    | Total general de usuarios y desglose por sexo, con Chart.js   |
+| `/dbtest`               | Comprueba que Apache, PHP y PostgreSQL se hablan entre sí     |
 
 ```
-application/models/Usuario_model.php     listar(), crear(), total()
-application/controllers/Usuarios.php     index() y crear()
-application/views/usuarios/              lista.php y form.php
+application/models/Usuario_model.php     listar(), crear(), obtener(), editar(), existeOtroCon(),
+                                          total(), conteoPorSexo()
+application/controllers/Usuarios.php     index(), crear(), editar(), graficas(), unico_excepto()
+application/views/usuarios/              lista.php, form.php, editar.php y graficas.php
 application/views/plantilla/             cabecera.php y pie.php (comunes)
 assets/css/estilos.css                   CSS de cabecera.php y de las vistas de usuarios
 ```
 
-El alta valida con `form_validation`: nombre, apellidos y correo obligatorios, correo con formato
-válido y único en la tabla, longitudes que coinciden con las del esquema, contraseña de al menos
-8 caracteres (y máximo 72, ver más abajo) y un campo `contrasena_confirmar` que debe coincidir
-(`matches[contrasena]`). El teléfono es opcional y se guarda como `NULL` cuando se deja vacío, no
-como cadena vacía.
+El alta y la edición validan con `form_validation`: nombre, apellidos y correo obligatorios,
+correo con formato válido y único en la tabla, longitudes que coinciden con las del esquema,
+contraseña de al menos 8 caracteres (y máximo 72, ver más abajo) y un campo `contrasena_confirmar`
+que debe coincidir (`matches[contrasena]`). El teléfono es opcional y se guarda como `NULL` cuando
+se deja vacío, no como cadena vacía.
+
+CURP, RFC y teléfono se validan con `regex_match[...]` (el nombre real de la regla en esta versión
+de CodeIgniter 3; `regex[...]`, que aparece en la documentación de algunos tutoriales, no existe
+como regla y falla siempre sin importar el valor). CURP y RFC además se normalizan a mayúsculas
+con `strtoupper` antes de validar y guardar, y son únicos en la tabla. `sexo` viene de un
+`<select>` con `required|in_list[M,F,Otro]`, sin necesitar regex.
+
+En la edición, `correo`, `curp` y `rfc` usan el callback `callback_unico_excepto[campo.id]` en vez
+de `is_unique[...]`: CodeIgniter 3 no soporta excluir el propio id en `is_unique`, así que el
+callback compara contra `Usuario_model::existeOtroCon()`, que sí filtra `WHERE id != :id`. La
+contraseña es opcional en la edición —dejarla en blanco no cambia el hash— por eso sus reglas no
+llevan `required`, a diferencia del alta.
 
 Los mensajes de error se traducen con `set_message()` en el propio controlador. No se cambia
 `$config['language']` a `spanish` porque entonces CodeIgniter esperaría encontrar traducidos
@@ -123,8 +138,47 @@ en vez de dejar que ocurra sin que nadie lo note.
 
 **Por qué se activó CSRF con este cambio.** El formulario ahora maneja una contraseña, así que
 tiene sentido cerrar ese hueco a la vez. No hace falta tocar ninguna vista: `form_open()` ya
-inyecta el campo oculto cuando `csrf_protection` está en `TRUE`, y `usuarios/crear` es el único
-POST de toda la aplicación.
+inyecta el campo oculto cuando `csrf_protection` está en `TRUE`. `usuarios/crear` era el único
+POST de la aplicación en ese momento; `usuarios/editar/:id` se sumó después con el mismo mecanismo.
+
+## Decisiones de CURP, RFC, sexo y gráficas
+
+**Por qué CURP y RFC son dos campos separados y únicos.** Son identificadores legales distintos,
+con formatos distintos (18 posiciones contra 12 o 13). Fundirlos en un solo campo obligaría a una
+regex ambigua que acepte dos formatos diferentes bajo un mismo nombre; separados, cada uno valida
+con su propia regla y su propia restricción `UNIQUE`.
+
+**Por qué la regex de CURP valida la estructura completa y no solo la longitud.** Además de
+`{18}` posiciones, comprueba fecha (`AAMMDD`), sexo (`H`/`M`), entidad (2 letras) y que las 3
+consonantes internas excluyan vocales y `Ñ` (`[B-DF-HJ-NP-TV-Z]`). Una regex de solo longitud
+aceptaría cualquier cadena de 18 caracteres alfanuméricos, lo cual no es el ejercicio que pide la
+materia de expresiones regulares ni detecta errores de captura reales.
+
+**Por qué el RFC acepta 12 y 13 posiciones.** 13 es persona física (4 letras + fecha + homoclave)
+y 12 es persona moral (3 letras + fecha + homoclave). No hay ninguna razón para asumir que todo
+usuario del sistema es una persona física.
+
+**Por qué el teléfono exige exactamente 10 dígitos sin separadores.** Formato simple, sin
+ambigüedad de cuántos espacios o guiones aceptar, y fácil de reutilizar más adelante —por ejemplo
+en un enlace `tel:`—. Sigue siendo opcional: la regla `regex_match[...]` solo corre cuando el
+campo trae valor.
+
+**Por qué `sexo` tiene tres opciones (`M`/`F`/`Otro`) y no es un booleano.** Un booleano no puede
+representar "Otro", y la gráfica por sexo necesita esa tercera categoría. Se implementa como
+`VARCHAR(10)` con `CHECK`, no con un tipo `ENUM` de PostgreSQL, para no tener que alterar un tipo
+de enum (operación más costosa en PostgreSQL) si algún día se agrega una cuarta opción.
+
+**Por qué se construyó la edición (`/usuarios/editar/:id`) en esta spec.** El enunciado de la
+tarea asume que ya existe un formulario de "registro/edición", pero el código solo tenía alta. Sin
+edición no había dónde aplicar CURP, RFC y sexo a usuarios ya dados de alta.
+
+**Por qué Chart.js desde CDN y no una librería de gráficas en PHP.** Se carga solo en
+`usuarios/graficas.php`, no en `plantilla/cabecera.php`, así que no se paga su peso en el resto de
+páginas. El contenedor `php:5.6-apache` no trae ninguna extensión de gráficas (tipo GD con soporte
+de charts), y generarlas en PHP tipo imagen implicaría instalar y mantener una librería adicional
+para una necesidad que Chart.js resuelve en el navegador con datos que la vista ya expone vía
+`json_encode()`. La contrapartida es que la gráfica no carga si el navegador no tiene salida a
+Internet (el contenedor PHP no la necesita, solo el navegador del usuario).
 
 ## Comandos útiles
 
@@ -136,11 +190,11 @@ docker compose build --no-cache web                       # reconstruir PHP desd
 
 ## Base de datos
 
-La tabla `usuarios` guarda nombre, apellidos, correo, teléfono y el hash bcrypt de la contraseña.
-El `id` no usa `SERIAL`: la secuencia se declara aparte (`CREATE SEQUENCE usuarios_id_seq`) y se
-ata a la columna con `ALTER SEQUENCE ... OWNED BY`, así queda como un objeto propio del esquema
-—visible con `\ds`— pero se sigue borrando junto con la tabla y `pg_dump` la exporta con su
-`setval`.
+La tabla `usuarios` guarda nombre, apellidos, correo, teléfono, CURP, RFC, sexo y el hash bcrypt
+de la contraseña. El `id` no usa `SERIAL`: la secuencia se declara aparte (`CREATE SEQUENCE
+usuarios_id_seq`) y se ata a la columna con `ALTER SEQUENCE ... OWNED BY`, así queda como un
+objeto propio del esquema —visible con `\ds`— pero se sigue borrando junto con la tabla y
+`pg_dump` la exporta con su `setval`.
 
 ```sql
 CREATE SEQUENCE usuarios_id_seq;
@@ -151,6 +205,9 @@ CREATE TABLE usuarios (
     apellidos        VARCHAR(150) NOT NULL,
     correo           VARCHAR(150) NOT NULL UNIQUE,
     telefono         VARCHAR(20),
+    curp             VARCHAR(18)  NOT NULL UNIQUE,
+    rfc              VARCHAR(13)  NOT NULL UNIQUE,
+    sexo             VARCHAR(10)  NOT NULL CHECK (sexo IN ('M', 'F', 'Otro')),
     contrasena_hash  VARCHAR(255),
     creado_en        TIMESTAMP    NOT NULL DEFAULT NOW()
 );
@@ -166,15 +223,21 @@ hash de relleno.
 
 `db/init/01-init.sql` solo corre una vez, cuando el volumen de Postgres está vacío (ver
 "Problemas conocidos" más abajo). Para aplicar un cambio de esquema —como añadir
-`contrasena_hash`— a una base que ya tiene datos, sin perderlos, `db/migrations/` guarda parches
-SQL idempotentes con la fecha por delante:
+`contrasena_hash`, o después `curp`/`rfc`/`sexo`— a una base que ya tiene datos, sin perderlos,
+`db/migrations/` guarda parches SQL idempotentes con la fecha por delante:
 
 ```bash
 ./db/backup.sh
 docker compose exec -T db psql -U tai -d soluciones_tai \
     < db/migrations/2026-08-11-add-contrasena-hash.sql
+docker compose exec -T db psql -U tai -d soluciones_tai \
+    < db/migrations/2026-08-13-add-curp-rfc-sexo.sql
 docker compose exec db psql -U tai -d soluciones_tai -c "\d usuarios"   # verificar
 ```
+
+La segunda migración también rellena los 3 usuarios de ejemplo con CURP, RFC y sexo ficticios pero
+válidos según las regex de arriba (y normaliza sus teléfonos a solo dígitos), para poder declarar
+las columnas `NOT NULL` desde ya en vez de dejarlo solo a nivel de `form_validation`.
 
 ### Respaldo y restauración
 
@@ -211,6 +274,16 @@ Diferencia con `docker compose down -v`: eso borra el volumen entero y vuelve a 
 cuando se hizo el respaldo, incluido el valor de la secuencia.
 
 ## Problemas conocidos
+
+**CSRF roto en PHP < 7.3 por un bug de CodeIgniter 3 (ya parcheado).** `system/core/Security.php`
+genera la cookie CSRF de dos formas según la versión de PHP: en PHP ≥ 7.3 usa `setcookie()` con un
+array de opciones; en PHP < 7.3 —nuestro caso, 5.6.40— arma la cabecera `Set-Cookie` a mano y
+aplicaba `rawurlencode()` al `path`, convirtiendo `/` en `%2F`. Un navegador real no asocia esa
+cookie con `Path=%2F` a las rutas normales de la app (`/usuarios/editar/1`, etc.), así que todo
+formulario POST fallaba con 403 "The action you have requested is not allowed", aunque `curl` con
+un cookie jar no mostraba el problema (no aplica el emparejamiento estricto de `Path` que usan los
+navegadores). Se quitó el `rawurlencode()` de esa línea, igual que ya hace la rama de PHP ≥ 7.3,
+que nunca codifica el `path`. Detectado probando `/usuarios/editar/:id` con Playwright.
 
 **Lentitud.** `php:5.6-apache` y `postgres:9.5` solo se publican para `linux/amd64`; en Apple
 Silicon corren emulados (de ahí el `platform: linux/amd64` en el compose). Funciona, pero es
