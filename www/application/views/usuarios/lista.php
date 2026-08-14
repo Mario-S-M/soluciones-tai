@@ -34,3 +34,4 @@
 	<?php endif; ?>
 
 	<a class="boton" href="<?= site_url('usuarios/crear') ?>">Nuevo usuario</a>
+	<a href="<?= site_url('usuarios/graficas') ?>">Ver gráficas</a>

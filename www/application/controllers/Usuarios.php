@@ -2,11 +2,12 @@
 defined('BASEPATH') OR exit('No direct script access allowed');
 
 /**
- * Listado, alta y edicion de usuarios.
+ * Listado, alta, edicion y graficas de usuarios.
  *
  *   /usuarios              listado
  *   /usuarios/crear        formulario de alta
  *   /usuarios/editar/:id   formulario de edicion
+ *   /usuarios/graficas     grafica de usuarios registrados
  */
 class Usuarios extends CI_Controller {
 
@@ -143,6 +144,18 @@ class Usuarios extends CI_Controller {
 		));
 
 		redirect('usuarios');
+	}
+
+	public function graficas()
+	{
+		$data = array(
+			'total'       => $this->usuario_model->total(),
+			'conteo_sexo' => $this->usuario_model->conteoPorSexo(),
+		);
+
+		$this->load->view('plantilla/cabecera', array('titulo' => 'Gráficas de usuarios'));
+		$this->load->view('usuarios/graficas', $data);
+		$this->load->view('plantilla/pie');
 	}
 
 	/**

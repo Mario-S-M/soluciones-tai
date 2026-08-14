@@ -109,4 +109,27 @@ class Usuario_model extends CI_Model {
 	{
 		return $this->db->count_all($this->tabla);
 	}
+
+	/**
+	 * Total de usuarios por sexo. Devuelve las tres categorias posibles
+	 * (M, F, Otro) con 0 cuando no hay usuarios registrados en alguna,
+	 * para que la grafica siempre muestre las tres barras.
+	 */
+	public function conteoPorSexo()
+	{
+		$conteo = array('M' => 0, 'F' => 0, 'Otro' => 0);
+
+		$filas = $this->db
+			->select('sexo, COUNT(*) AS total')
+			->group_by('sexo')
+			->get($this->tabla)
+			->result();
+
+		foreach ($filas as $fila)
+		{
+			$conteo[$fila->sexo] = (int) $fila->total;
+		}
+
+		return $conteo;
+	}
 }
