@@ -23,7 +23,7 @@ class Usuario_model extends CI_Model {
 	{
 		return $this->db
 			->select(
-				"id, nombre, apellidos, correo, telefono, creado_en, " .
+				"id, nombre, apellidos, correo, telefono, curp, rfc, sexo, creado_en, " .
 				"CASE WHEN contrasena_hash IS NOT NULL THEN 'Sí' ELSE 'No' END AS contrasena_estado",
 				FALSE
 			)
