@@ -9,3 +9,6 @@ www/application/cache/*
 
 # macOS
 .DS_Store
+
+# Specs de trabajo (no se versionan)
+specs/
