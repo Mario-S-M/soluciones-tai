@@ -54,6 +54,57 @@ class Usuario_model extends CI_Model {
 		return $this->db->insert_id();
 	}
 
+	/**
+	 * Un usuario por id, para precargar el formulario de edicion. Mismo
+	 * criterio que listar(): no selecciona contrasena_hash.
+	 */
+	public function obtener($id)
+	{
+		return $this->db
+			->select('id, nombre, apellidos, correo, telefono, curp, rfc, sexo, creado_en')
+			->where('id', $id)
+			->get($this->tabla)
+			->row();
+	}
+
+	/**
+	 * Edita un usuario existente. La contraseña solo se rehashea si
+	 * $datos['contrasena'] trae un valor; en blanco significa "no cambiarla".
+	 */
+	public function editar($id, $datos)
+	{
+		$campos = array(
+			'nombre'    => $datos['nombre'],
+			'apellidos' => $datos['apellidos'],
+			'correo'    => $datos['correo'],
+			'curp'      => $datos['curp'],
+			'rfc'       => $datos['rfc'],
+			'sexo'      => $datos['sexo'],
+			'telefono'  => $datos['telefono'] !== '' ? $datos['telefono'] : NULL,
+		);
+
+		if ($datos['contrasena'] !== '')
+		{
+			$campos['contrasena_hash'] = password_hash($datos['contrasena'], PASSWORD_BCRYPT);
+		}
+
+		$this->db->where('id', $id)->update($this->tabla, $campos);
+	}
+
+	/**
+	 * Si otro usuario (distinto de $id) ya tiene ese valor en $campo. Usada
+	 * por el callback de unicidad en la edicion, porque is_unique[] de
+	 * CodeIgniter 3 no soporta excluir el propio id.
+	 */
+	public function existeOtroCon($campo, $valor, $id)
+	{
+		return $this->db
+			->where($campo, $valor)
+			->where('id !=', $id)
+			->from($this->tabla)
+			->count_all_results() > 0;
+	}
+
 	public function total()
 	{
 		return $this->db->count_all($this->tabla);
