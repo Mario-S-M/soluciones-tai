@@ -12,6 +12,11 @@ CREATE TABLE usuarios (
     apellidos        VARCHAR(150) NOT NULL,
     correo           VARCHAR(150) NOT NULL UNIQUE,
     telefono         VARCHAR(20),
+    -- Formato oficial de 18 posiciones (fecha, sexo H/M, entidad, verificador).
+    curp             VARCHAR(18)  NOT NULL UNIQUE,
+    -- Acepta persona fisica (13) y persona moral (12).
+    rfc              VARCHAR(13)  NOT NULL UNIQUE,
+    sexo             VARCHAR(10)  NOT NULL CHECK (sexo IN ('M', 'F', 'Otro')),
     -- Hash bcrypt generado con password_hash() de PHP; nunca texto plano.
     contrasena_hash  VARCHAR(255),
     creado_en        TIMESTAMP    NOT NULL DEFAULT NOW()
@@ -21,7 +26,8 @@ CREATE TABLE usuarios (
 -- exporta asociada, con su setval correspondiente.
 ALTER SEQUENCE usuarios_id_seq OWNED BY usuarios.id;
 
-INSERT INTO usuarios (nombre, apellidos, correo, telefono) VALUES
-    ('Mario Eduardo', 'Sanchez Mejia',  'mario@tai.local',   '55 1234 5678'),
-    ('Ana Lucia',     'Ramirez Torres', 'ana@tai.local',     '55 8765 4321'),
-    ('Soporte',       'Soluciones TAI', 'soporte@tai.local', '55 0000 1111');
+-- CURP, RFC y telefono son ficticios, no corresponden a personas reales.
+INSERT INTO usuarios (nombre, apellidos, correo, telefono, curp, rfc, sexo) VALUES
+    ('Mario Eduardo', 'Sanchez Mejia',  'mario@tai.local',   '5512345678', 'SAME850101HDFNRR08', 'SAME850101AB1', 'M'),
+    ('Ana Lucia',     'Ramirez Torres', 'ana@tai.local',     '5587654321', 'RATA900215MDFMRN05', 'RATA900215XY2', 'F'),
+    ('Soporte',       'Soluciones TAI', 'soporte@tai.local', '5500001111', 'SOTA000101HCMPRT02', 'SST000101QW4', 'Otro');
