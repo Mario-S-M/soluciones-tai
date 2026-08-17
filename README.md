@@ -79,17 +79,20 @@ nada ni reiniciar contenedores.
 
 | Ruta                    | Qué hace                                                     |
 |-------------------------|----------------------------------------------------------------|
-| `/usuarios`             | Listado de usuarios                                           |
+| `/usuarios`             | Listado de usuarios, en un DataTable con selección y exportación a Excel/PDF |
 | `/usuarios/crear`       | Formulario de alta con validación                             |
 | `/usuarios/editar/:id`  | Formulario de edición, con la contraseña opcional             |
 | `/usuarios/graficas`    | Total general de usuarios y desglose por sexo, con Chart.js   |
+| `/usuarios/plantilla`   | Descarga la plantilla CSV para la importación masiva          |
+| `/usuarios/importar`    | Formulario de importación masiva desde un CSV, con validación fila por fila |
 | `/dbtest`               | Comprueba que Apache, PHP y PostgreSQL se hablan entre sí     |
 
 ```
 application/models/Usuario_model.php     listar(), crear(), obtener(), editar(), existeOtroCon(),
                                           total(), conteoPorSexo()
-application/controllers/Usuarios.php     index(), crear(), editar(), graficas(), unico_excepto()
-application/views/usuarios/              lista.php, form.php, editar.php y graficas.php
+application/controllers/Usuarios.php     index(), crear(), editar(), graficas(), unico_excepto(),
+                                          plantilla(), importar(), reglas_alta()
+application/views/usuarios/              lista.php, form.php, editar.php, graficas.php e importar.php
 application/views/plantilla/             cabecera.php y pie.php (comunes)
 assets/css/estilos.css                   CSS de cabecera.php y de las vistas de usuarios
 ```
@@ -179,6 +182,51 @@ de charts), y generarlas en PHP tipo imagen implicaría instalar y mantener una 
 para una necesidad que Chart.js resuelve en el navegador con datos que la vista ya expone vía
 `json_encode()`. La contrapartida es que la gráfica no carga si el navegador no tiene salida a
 Internet (el contenedor PHP no la necesita, solo el navegador del usuario).
+
+## Decisiones de exportación e importación
+
+**Por qué la exportación a Excel/PDF corre 100% en el navegador.** `usuarios/lista.php` carga
+DataTables junto con sus extensiones Buttons y Select desde CDN (mismo criterio que Chart.js:
+solo en esta vista, no en `plantilla/cabecera.php`). Los botones `excelHtml5` y `pdfHtml5` generan
+el archivo con JSZip y pdfmake directamente en el navegador, a partir de los datos que ya están en
+la tabla. La alternativa —generar el archivo en el servidor— requeriría PhpSpreadsheet o dompdf,
+ninguno de los cuales soporta PHP 5.6 (ambos piden PHP ≥ 7.2), así que no eran viables sin
+congelar una versión antigua e insegura.
+
+**Por qué la columna de checkbox usa la extensión Select de DataTables y no inputs a mano.** Select
+es la pieza de DataTables pensada exactamente para esto: agrega la columna, dibuja el estado
+marcado/no marcado con CSS y mantiene la selección aunque el usuario cambie de página o filtre con
+el buscador. El checkbox de "seleccionar todos" en la cabecera sí se inyecta a mano con jQuery,
+porque Select no trae uno por defecto en esta versión.
+
+**Por qué los botones exportan solo lo seleccionado, y si no hay nada marcado exportan todo.** Le
+da un propósito real a la columna de checkbox —"selección de datos a exportar"— en vez de dejarla
+como adorno visual. La columna de checkbox y la de "Editar" se excluyen siempre de la exportación
+por `exportOptions.columns`, ninguna aporta nada fuera de la página.
+
+**Por qué la plantilla de importación es un `.csv` y no un `.xlsx` real.** Leer `.xlsx` en el
+servidor con PhpSpreadsheet tiene el mismo problema de PHP 5.6 que la exportación; la alternativa
+sin librerías modernas es PHPExcel, abandonado desde 2019 y sin parches de seguridad. Un `.csv` se
+lee con `fgetcsv()`, nativo de PHP, sin instalar nada, y Excel lo abre y edita sin fricción —sigue
+siendo la misma experiencia de "plantilla de Excel" para quien la llena.
+
+**Por qué la plantilla incluye una columna `contrasena` en texto plano.** `Usuario_model::crear()`
+exige una contraseña para dar de alta un usuario, igual que el formulario manual; no hay una forma
+de omitirla sin dejar cuentas sin contraseña utilizable. El archivo nunca se guarda en el servidor
+—solo se lee en memoria fila por fila y se descarta—, y cada contraseña se hashea con bcrypt antes
+de insertarse, igual que en `crear()`. No se pide un campo de confirmación en el CSV porque no hay
+doble captura que verificar en un archivo, a diferencia del formulario.
+
+**Por qué la importación valida con `form_validation->set_data()` en vez de reglas propias.**
+`Usuarios::reglas_alta()` (extraída de `crear()`) define las reglas una sola vez; tanto el alta
+manual como la importación las corren tal cual, incluida `is_unique[...]`, así que un correo/CURP/RFC
+repetido se rechaza con el mismo criterio en los dos flujos. `set_data()` es el mecanismo que ofrece
+CodeIgniter 3 para validar un array que no viene de `$_POST`, sin tocar la superglobal.
+
+**Por qué una fila inválida no detiene la importación.** Cada fila del CSV se valida y, si falla,
+solo esa fila queda fuera —el resto se sigue procesando—. El resultado final lista fila por fila
+qué se insertó y qué se rechazó (y por qué), en vez de fallar el archivo completo por un solo dato
+mal capturado.
 
 ## Comandos útiles
 
